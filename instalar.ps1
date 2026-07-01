@@ -33,9 +33,10 @@ try {
     Remove-Item $zip -Force
   }
 
-  # 2) a ponte (sem segredo nenhum)
+  # 2) a ponte (sem segredo nenhum) + package.json (marca como modulo ES p/ os import)
   Write-Host '-> Baixando a ponte...' -ForegroundColor Cyan
   Invoke-WebRequest "$repo/ponte.js" -OutFile (Join-Path $base 'ponte.js') -UseBasicParsing
+  Set-Content -Path (Join-Path $base 'package.json') -Value '{ "type": "module" }' -Encoding ascii
 
   # 3) configuracao (.env): anon key publica embutida; o token voce cola agora
   $anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4Y3p4dWFuempkcnl4dmppbnVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MzU4NDIsImV4cCI6MjA5ODQxMTg0Mn0.HXKpY8SoxXOKgp0aY4UTh5pQ50CsXUrQXDWlsAKtQU0'
