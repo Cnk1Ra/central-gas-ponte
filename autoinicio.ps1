@@ -12,8 +12,22 @@ try {
   if (-not (Test-Path (Join-Path $base '.env'))) { throw "Nao achei o .env em $base. Falta a configuracao (token)." }
 
   # launcher que reinicia sozinho em caso de queda (loop), rodando escondido
-  $rodar = "@echo off`r`ncd /d `"$base`"`r`n:loop`r`n`"$base\node\node.exe`" ponte.js`r`ntimeout /t 3 /nobreak >nul`r`ngoto loop`r`n"
+  # tudo que a ponte imprime vai pro ponte.log (apaga quando passa de 5MB)
+  $rodar = "@echo off`r`ncd /d `"$base`"`r`n:loop`r`nif exist ponte.log for %%A in (ponte.log) do if %%~zA gtr 5242880 del ponte.log`r`n`"$base\node\node.exe`" ponte.js >> ponte.log 2>&1`r`ntimeout /t 3 /nobreak >nul`r`ngoto loop`r`n"
   Set-Content -Path (Join-Path $base 'rodar.cmd') -Value $rodar -Encoding ascii
+
+  # libera a porta do syslog no firewall (o HT814 precisa alcancar este PC).
+  # Como a ponte roda escondida, o Windows nunca mostra o aviso de liberacao -
+  # sem esta regra o syslog pode ser bloqueado em silencio. Precisa de admin.
+  $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if ($isAdmin) {
+    netsh advfirewall firewall delete rule name="CentralGasPonte Syslog" *> $null
+    netsh advfirewall firewall add rule name="CentralGasPonte Syslog" dir=in action=allow protocol=UDP localport=514 | Out-Null
+    Write-Host '-> Firewall: porta UDP 514 liberada.' -ForegroundColor Cyan
+  } else {
+    Write-Host '-> AVISO: sem admin, nao deu pra liberar o firewall (UDP 514).' -ForegroundColor Yellow
+    Write-Host '   Rode o AUTOINICIO.bat de novo: botao direito > Executar como administrador.' -ForegroundColor Yellow
+  }
   $vbs = "CreateObject(`"WScript.Shell`").Run `"cmd /c """"$base\rodar.cmd""""`", 0, False"
   Set-Content -Path (Join-Path $base 'rodar-oculto.vbs') -Value $vbs -Encoding ascii
 
@@ -21,8 +35,9 @@ try {
   schtasks /Create /TN 'CentralGasPonte' /TR "wscript.exe \"$base\rodar-oculto.vbs\"" /SC ONLOGON /RL LIMITED /F | Out-Null
   Write-Host '-> Auto-inicio no boot: configurado.' -ForegroundColor Cyan
 
-  # mata instancias antigas do node da ponte (se houver) e inicia agora
-  Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -like '*CentralGasPonte*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  # mata a ponte antiga inteira (loop rodar.cmd + vbs + node) antes de iniciar de novo,
+  # senao o loop antigo ressuscita o node e briga pela porta 514 com o novo
+  Get-CimInstance Win32_Process | Where-Object { ($_.CommandLine -like '*rodar.cmd*') -or ($_.CommandLine -like '*rodar-oculto.vbs*') -or ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*CentralGasPonte*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Start-Process wscript.exe -ArgumentList "`"$base\rodar-oculto.vbs`""
 
   Write-Host ''
