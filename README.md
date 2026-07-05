@@ -5,6 +5,12 @@ App que faz a **bina aparecer ao vivo** na Central de Chamadas. Lê o caller-ID 
 
 ## Instalar (Windows) — um clique
 
+**Jeito recomendado:** no PC da loja, entre no app da Central Gás → menu do perfil →
+**Ajustes** → **Baixar instalador da bina**. O arquivo já vem com o token configurado —
+é só dar dois cliques e clicar **Sim** na pergunta do administrador. Zero digitação.
+
+Jeito manual (se não tiver o app à mão):
+
 1. Baixe o **[INSTALAR-PONTE.bat](https://raw.githubusercontent.com/Cnk1Ra/central-gas-ponte/main/INSTALAR-PONTE.bat)** (clique com o botão direito → *Salvar link como…*).
 2. **Dê dois cliques** no arquivo baixado.
    - Se o Windows mostrar um aviso azul (SmartScreen): *Mais informações → Executar assim mesmo*.

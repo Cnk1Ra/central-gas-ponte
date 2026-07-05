@@ -1,5 +1,7 @@
 # Instalador da Ponte da Bina - Central Gas (Windows)
-# Baixa Node portatil + a ponte, pede o token uma vez, e deixa rodando sozinho (boot + auto-restart).
+# Baixa Node portatil + a ponte e deixa rodando sozinho (boot + auto-restart + log).
+# Token: usa $env:PONTE_TOKEN se existir (instalador baixado de dentro do app, ja
+# configurado); so pergunta se vier vazio (instalacao manual).
 $repo = 'https://raw.githubusercontent.com/Cnk1Ra/central-gas-ponte/main'
 $base = Join-Path $env:LOCALAPPDATA 'CentralGasPonte'
 
@@ -38,21 +40,40 @@ try {
   Invoke-WebRequest "$repo/ponte.js" -OutFile (Join-Path $base 'ponte.js') -UseBasicParsing
   Set-Content -Path (Join-Path $base 'package.json') -Value '{ "type": "module" }' -Encoding ascii
 
-  # 3) configuracao (.env): anon key publica embutida; o token voce cola agora
+  # 3) configuracao (.env): anon key publica embutida; token do app ou digitado
   $anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4Y3p4dWFuempkcnl4dmppbnVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MzU4NDIsImV4cCI6MjA5ODQxMTg0Mn0.HXKpY8SoxXOKgp0aY4UTh5pQ50CsXUrQXDWlsAKtQU0'
-  Write-Host ''
-  $token = Read-Host 'Cole o TOKEN de ingestao e tecle Enter'
-  if ([string]::IsNullOrWhiteSpace($token)) { throw 'Token vazio. Rode de novo e cole o token (botao direito do mouse cola no terminal).' }
+  $token = $env:PONTE_TOKEN
+  if ([string]::IsNullOrWhiteSpace($token)) {
+    Write-Host ''
+    $token = Read-Host 'Cole o TOKEN de ingestao e tecle Enter'
+    if ([string]::IsNullOrWhiteSpace($token)) { throw 'Token vazio. Rode de novo e cole o token (botao direito do mouse cola no terminal).' }
+  } else {
+    Write-Host '-> Token: ja veio configurado no instalador.' -ForegroundColor Cyan
+  }
   $envTxt = "SUPABASE_URL=https://qxczxuanzjdryxvjinuo.supabase.co`r`nSUPABASE_ANON_KEY=$anon`r`nINGEST_TOKEN=$($token.Trim())`r`nSYSLOG_PORT=514`r`nDEBOUNCE_MS=6000`r`n"
   Set-Content -Path (Join-Path $base '.env') -Value $envTxt -Encoding ascii
 
-  # 4) launcher que reinicia sozinho em caso de queda (loop), rodando escondido
-  $rodar = "@echo off`r`ncd /d `"$base`"`r`n:loop`r`n`"$base\node\node.exe`" ponte.js`r`ntimeout /t 3 /nobreak >nul`r`ngoto loop`r`n"
+  # 4) launcher que reinicia sozinho em caso de queda (loop), rodando escondido.
+  # Tudo que a ponte imprime vai pro ponte.log (apaga quando passa de 5MB).
+  $rodar = "@echo off`r`ncd /d `"$base`"`r`n:loop`r`nif exist ponte.log for %%A in (ponte.log) do if %%~zA gtr 5242880 del ponte.log`r`n`"$base\node\node.exe`" ponte.js >> ponte.log 2>&1`r`ntimeout /t 3 /nobreak >nul`r`ngoto loop`r`n"
   Set-Content -Path (Join-Path $base 'rodar.cmd') -Value $rodar -Encoding ascii
   $vbs = "CreateObject(`"WScript.Shell`").Run `"cmd /c """"$base\rodar.cmd""""`", 0, False"
   Set-Content -Path (Join-Path $base 'rodar-oculto.vbs') -Value $vbs -Encoding ascii
 
-  # 5) tarefa agendada: sobe sozinha quando o PC liga/loga (nao-fatal se falhar)
+  # 5) firewall: o HT814 precisa alcancar este PC na UDP 514. Como a ponte roda
+  # escondida, o Windows nunca mostra o aviso de liberacao - sem a regra o syslog
+  # pode ser bloqueado em silencio. Precisa de admin; nao-fatal se nao der.
+  $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if ($isAdmin) {
+    netsh advfirewall firewall delete rule name="CentralGasPonte Syslog" *> $null
+    netsh advfirewall firewall add rule name="CentralGasPonte Syslog" dir=in action=allow protocol=UDP localport=514 | Out-Null
+    Write-Host '-> Firewall: porta UDP 514 liberada.' -ForegroundColor Cyan
+  } else {
+    Write-Host '-> AVISO: sem admin, nao deu pra liberar o firewall (UDP 514).' -ForegroundColor Yellow
+    Write-Host '   Rode o instalador de novo: botao direito > Executar como administrador.' -ForegroundColor Yellow
+  }
+
+  # 6) tarefa agendada: sobe sozinha quando o PC liga/loga (nao-fatal se falhar)
   try {
     schtasks /Create /TN 'CentralGasPonte' /TR "wscript.exe \"$base\rodar-oculto.vbs\"" /SC ONLOGON /RL LIMITED /F | Out-Null
     Write-Host '-> Auto-inicio no boot: configurado.' -ForegroundColor Cyan
@@ -60,7 +81,9 @@ try {
     Write-Host '-> Aviso: nao consegui registrar o auto-inicio (a ponte vai rodar agora mesmo assim).' -ForegroundColor Yellow
   }
 
-  # 6) inicia agora (escondido)
+  # 7) mata a ponte antiga inteira (loop rodar.cmd + vbs + node) e inicia a nova,
+  # senao o loop antigo ressuscita o node e briga pela porta 514 com o novo
+  Get-CimInstance Win32_Process | Where-Object { ($_.CommandLine -like '*rodar.cmd*') -or ($_.CommandLine -like '*rodar-oculto.vbs*') -or ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*CentralGasPonte*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Start-Process wscript.exe -ArgumentList "`"$base\rodar-oculto.vbs`""
 
   Write-Host ''
