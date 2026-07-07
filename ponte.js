@@ -120,8 +120,10 @@ if (args[0] === '--simular') {
 // ---------- BraiD (a mesma fonte de bina que o JBFER usa hoje) ----------
 // Pacotes UDP de 150 bytes: parte útil ASCII "&&L1_INDEX_PHONE->1995878395@" + lixo binário.
 // Eventos por chamada (em duplicata): CALLER_DTMF/FSK, NUMBER_FORMAT_*, INDEX_PHONE,
-// DETECT_PHONE, RING_COUNT. Usamos INDEX_PHONE/CALLER_* (dígitos puros); NUMBER_FORMAT e
-// DETECT vêm com o TIPO da chamada colado na frente (3=celular) e sujariam o número.
+// DETECT_PHONE, RING_COUNT. Usamos SÓ o INDEX_PHONE — é o número final "limpo pra busca".
+// Os CALLER_DTMF/FSK chegam PROGRESSIVAMENTE (o áudio ainda está decodificando) e às vezes
+// vêm cortados no meio, gerando um registro fantasma com número truncado. NUMBER_FORMAT e
+// DETECT_PHONE vêm com o TIPO da chamada colado na frente (3=celular) e sujariam o número.
 // Quirk conhecido: a captura por áudio derruba o 1º dígito do DDD — não afeta, o match
 // do cliente é pelos 8 últimos dígitos.
 function iniciarBraid() {
@@ -130,7 +132,7 @@ function iniciarBraid() {
   sock.on('message', (buf, rinfo) => {
     const texto = buf.toString('latin1').replace(/[^\x20-\x7e]/g, '')
     if (cfg.learn) { console.log(`--- BraiD de ${rinfo.address} ---\n${texto}\n`); return }
-    const m = texto.match(/&&L(\d+)_(?:INDEX_PHONE|CALLER_DTMF|CALLER_FSK)->([0-9()\- ]+)@/)
+    const m = texto.match(/&&L(\d+)_INDEX_PHONE->([0-9()\- ]+)@/)
     if (!m) return
     const numero = m[2].replace(/\D/g, '')
     if (numero.length < 8) return
