@@ -5,8 +5,9 @@ echo ==============================================
 echo   VERIFICACAO DA PONTE DA BINA - CENTRAL GAS
 echo ==============================================
 echo.
-echo [1] Tarefa agendada (sobe sozinha no boot):
-schtasks /Query /TN CentralGasPonte 2>nul || echo    NAO ENCONTRADA - rode o AUTOINICIO.bat
+echo [1] Inicio automatico no boot:
+if exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\CentralGasPonte.vbs" (echo    Pasta Inicializar OK) else (echo    SEM atalho na Inicializar - rode o ATUALIZAR-BINA.bat)
+schtasks /Query /TN CentralGasPonte >nul 2>nul && (echo    Tarefa agendada OK) || (echo    sem tarefa agendada - ok se a Inicializar estiver OK)
 echo.
 echo [2] Ponte rodando agora (node.exe):
 tasklist /FI "IMAGENAME eq node.exe" 2>nul | findstr /I "node.exe" || echo    NENHUM node.exe rodando - rode o AUTOINICIO.bat

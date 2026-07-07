@@ -31,9 +31,23 @@ try {
   $vbs = "CreateObject(`"WScript.Shell`").Run `"cmd /c """"$base\rodar.cmd""""`", 0, False"
   Set-Content -Path (Join-Path $base 'rodar-oculto.vbs') -Value $vbs -Encoding ascii
 
-  # tarefa agendada: sobe sozinha quando o PC liga/loga
-  schtasks /Create /TN 'CentralGasPonte' /TR "wscript.exe \"$base\rodar-oculto.vbs\"" /SC ONLOGON /RL LIMITED /F | Out-Null
-  Write-Host '-> Auto-inicio no boot: configurado.' -ForegroundColor Cyan
+  # auto-inicio no boot: atalho na pasta Inicializar (a prova de aspas no caminho -
+  # o schtasks /TR quebrava com espaco/acento no perfil) + tarefa agendada de reforco
+  $boot = 'FALHOU'
+  try {
+    $startup = [Environment]::GetFolderPath('Startup')
+    if (-not (Test-Path $startup)) { New-Item -ItemType Directory -Force -Path $startup | Out-Null }
+    Copy-Item (Join-Path $base 'rodar-oculto.vbs') (Join-Path $startup 'CentralGasPonte.vbs') -Force
+    $boot = 'configurado (pasta Inicializar)'
+  } catch {}
+  try { schtasks /Delete /TN 'CentralGasPonte' /F 2>&1 | Out-Null } catch {}
+  try {
+    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('"' + (Join-Path $base 'rodar-oculto.vbs') + '"')
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    Register-ScheduledTask -TaskName 'CentralGasPonte' -Action $action -Trigger $trigger -Force | Out-Null
+    $boot = $boot + ' + tarefa agendada'
+  } catch {}
+  Write-Host "-> Auto-inicio no boot: $boot" -ForegroundColor Cyan
 
   # mata a ponte antiga inteira (loop rodar.cmd + vbs + node) antes de iniciar de novo,
   # senao o loop antigo ressuscita o node e briga pela porta 514 com o novo
