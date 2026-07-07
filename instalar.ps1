@@ -50,7 +50,7 @@ try {
   } else {
     Write-Host '-> Token: ja veio configurado no instalador.' -ForegroundColor Cyan
   }
-  $envTxt = "SUPABASE_URL=https://qxczxuanzjdryxvjinuo.supabase.co`r`nSUPABASE_ANON_KEY=$anon`r`nINGEST_TOKEN=$($token.Trim())`r`nSYSLOG_PORT=514`r`nDEBOUNCE_MS=6000`r`n"
+  $envTxt = "SUPABASE_URL=https://qxczxuanzjdryxvjinuo.supabase.co`r`nSUPABASE_ANON_KEY=$anon`r`nINGEST_TOKEN=$($token.Trim())`r`nSYSLOG_PORT=514`r`nBRAID_PORT=6590`r`nDEBOUNCE_MS=6000`r`n"
   Set-Content -Path (Join-Path $base '.env') -Value $envTxt -Encoding ascii
 
   # 4) launcher que reinicia sozinho em caso de queda (loop), rodando escondido.
@@ -67,9 +67,11 @@ try {
   if ($isAdmin) {
     netsh advfirewall firewall delete rule name="CentralGasPonte Syslog" *> $null
     netsh advfirewall firewall add rule name="CentralGasPonte Syslog" dir=in action=allow protocol=UDP localport=514 | Out-Null
-    Write-Host '-> Firewall: porta UDP 514 liberada.' -ForegroundColor Cyan
+    netsh advfirewall firewall delete rule name="CentralGasPonte BraiD" *> $null
+    netsh advfirewall firewall add rule name="CentralGasPonte BraiD" dir=in action=allow protocol=UDP localport=6590 | Out-Null
+    Write-Host '-> Firewall: portas UDP 514 (syslog) e 6590 (BraiD) liberadas.' -ForegroundColor Cyan
   } else {
-    Write-Host '-> AVISO: sem admin, nao deu pra liberar o firewall (UDP 514).' -ForegroundColor Yellow
+    Write-Host '-> AVISO: sem admin, nao deu pra liberar o firewall (UDP 514 e 6590).' -ForegroundColor Yellow
     Write-Host '   Rode o instalador de novo: botao direito > Executar como administrador.' -ForegroundColor Yellow
   }
 
@@ -90,7 +92,8 @@ try {
   Write-Host 'PRONTO! A ponte esta rodando e sobe sozinha quando o PC ligar.' -ForegroundColor Green
   Write-Host "Pasta: $base"
   Write-Host ''
-  Write-Host 'PROXIMO: no HT814 (192.168.2.2) -> Syslog -> aponte para o IP deste PC, nivel DEBUG.' -ForegroundColor Yellow
+  Write-Host 'PROXIMO: no PC principal, abra o BraiD (bandeja, perto do relogio) ->' -ForegroundColor Yellow
+  Write-Host 'Configuracoes de IPs -> adicione o IP deste PC com a porta 6590 em cada linha.' -ForegroundColor Yellow
   Write-Host 'Depois faca uma ligacao de teste e veja se aparece na Central de Chamadas.' -ForegroundColor Yellow
   Pausar
 }

@@ -11,17 +11,19 @@ echo.
 echo [2] Ponte rodando agora (node.exe):
 tasklist /FI "IMAGENAME eq node.exe" 2>nul | findstr /I "node.exe" || echo    NENHUM node.exe rodando - rode o AUTOINICIO.bat
 echo.
-echo [3] Escutando a bina (porta UDP 514):
-netstat -ano -p UDP | findstr /C:":514 " || echo    NADA escutando na porta 514
+echo [3] Escutando a bina (UDP 6590 BraiD / 514 syslog):
+netstat -ano -p UDP | findstr /C:":6590 " || echo    NADA escutando na porta 6590 (BraiD)
+netstat -ano -p UDP | findstr /C:":514 " || echo    NADA escutando na porta 514 (syslog)
 echo.
-echo [4] Regra do firewall (deixa o HT814 falar com o PC):
-netsh advfirewall firewall show rule name="CentralGasPonte Syslog" >nul 2>&1 && (echo    Regra OK) || (echo    SEM REGRA - rode o AUTOINICIO.bat como administrador)
+echo [4] Regras do firewall (deixam a bina chegar no PC):
+netsh advfirewall firewall show rule name="CentralGasPonte BraiD" >nul 2>&1 && (echo    Regra BraiD OK) || (echo    SEM REGRA BraiD - rode o ATUALIZAR-BINA.bat como administrador)
+netsh advfirewall firewall show rule name="CentralGasPonte Syslog" >nul 2>&1 && (echo    Regra Syslog OK) || (echo    SEM REGRA Syslog)
 echo.
 echo [5] Arquivos da ponte:
 if exist "%BASE%\ponte.js" (echo    ponte.js OK) else (echo    FALTA ponte.js - rode o INSTALAR-PONTE.bat)
 if exist "%BASE%\.env" (echo    .env OK) else (echo    FALTA .env - falta o token)
 echo.
-echo [6] IP deste PC (e o que vai no Syslog Server do HT814):
+echo [6] IP deste PC (e o que vai no BraiD "Enviar para mais IPs"):
 ipconfig | findstr /I "IPv4"
 echo.
 echo [7] Ultimas linhas do log da ponte:
